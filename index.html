@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+  <!-- PWA ke liye manifest link -->
+<link rel="manifest" href="manifest.json">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kids Matching Game</title>
+  <style>
+    /* ===== BASIC RESET & FONTS ===== */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Arial Rounded MT Bold', Arial, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      color: white;
+    }
+
+    /* ===== SCREENS — sirf ek waqt mein ek screen dikhti hai ===== */
+    .screen {
+      display: none; /* default mein sab hidden */
+      width: 100%;
+      max-width: 480px;
+      padding: 20px;
+      min-height: 100vh;
+      flex-direction: column;
+      align-items: center;
+    }
+    .screen.active {
+      display: flex; /* jo active ho wahi dikhti hai */
+    }
+
+    /* ===== HOME SCREEN ===== */
+    .home-title {
+      font-size: 2.2em;
+      text-align: center;
+      margin: 30px 0 10px;
+      color: #f9d71c;
+      text-shadow: 2px 2px 8px rgba(0,0,0,0.5);
+    }
+    .home-subtitle {
+      font-size: 1em;
+      opacity: 0.7;
+      margin-bottom: 30px;
+    }
+
+    /* Category cards on home screen */
+    .category-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 15px;
+      width: 100%;
+    }
+    .category-card {
+      background: rgba(255,255,255,0.1);
+      border-radius: 20px;
+      padding: 25px 15px;
+      text-align: center;
+      cursor: pointer;
+      border: 2px solid rgba(255,255,255,0.2);
+      transition: transform 0.2s, background 0.2s;
+      backdrop-filter: blur(10px);
+    }
+    .category-card:hover, .category-card:active {
+      transform: scale(1.05);
+      background: rgba(255,255,255,0.2);
+    }
+    .category-card .icon {
+      font-size: 3em;
+      display: block;
+      margin-bottom: 10px;
+    }
+    .category-card .name {
+      font-size: 1.1em;
+      font-weight: bold;
+    }
+
+    /* ===== GAME SCREEN ===== */
+    .game-header {
+      width: 100%;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 15px 0;
+      margin-bottom: 10px;
+    }
+    .back-btn {
+      background: rgba(255,255,255,0.15);
+      border: none;
+      color: white;
+      padding: 8px 15px;
+      border-radius: 20px;
+      cursor: pointer;
+      font-size: 0.9em;
+    }
+    .game-info {
+      text-align: center;
+    }
+    .level-text {
+      font-size: 1.3em;
+      font-weight: bold;
+      color: #f9d71c;
+    }
+    .score-text {
+      font-size: 0.85em;
+      opacity: 0.8;
+    }
+    .category-text {
+      font-size: 0.85em;
+      opacity: 0.8;
+    }
+
+    /* ===== CARD GRID ===== */
+    /* Yeh grid dynamically JavaScript se adjust hogi */
+    #cardGrid {
+      display: grid;
+      gap: 10px;
+      width: 100%;
+      margin-top: 10px;
+    }
+
+    /* ===== CARD DESIGN — Flip animation ke liye ===== */
+    .card-container {
+      perspective: 600px; /* 3D flip ke liye zaroori */
+      cursor: pointer;
+    }
+    .card-inner {
+      width: 100%;
+      padding-bottom: 100%; /* Square shape banata hai */
+      position: relative;
+      transform-style: preserve-3d;
+      transition: transform 0.4s ease;
+    }
+    /* Jab card flip ho */
+    .card-container.flipped .card-inner {
+      transform: rotateY(180deg);
+    }
+    /* Matched card hamesha face-up rahti hai */
+    .card-container.matched .card-inner {
+      transform: rotateY(180deg);
+    }
+
+    /* Card ka peechla (face-down) side */
+    .card-front, .card-back {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      border-radius: 15px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      backface-visibility: hidden; /* dono side ek saath na dikhein */
+      font-size: 2.5em;
+    }
+    .card-front {
+      background: linear-gradient(135deg, #4158D0, #C850C0);
+      border: 2px solid rgba(255,255,255,0.3);
+      font-size: 1.5em;
+      color: rgba(255,255,255,0.4);
+    }
+    .card-back {
+      background: rgba(255,255,255,0.15);
+      border: 2px solid rgba(255,255,255,0.4);
+      transform: rotateY(180deg); /* yeh side initially chupi hoti hai */
+      backdrop-filter: blur(5px);
+    }
+    /* Matched hone ke baad glow effect */
+    .card-container.matched .card-back {
+      background: rgba(100, 255, 100, 0.25);
+      border-color: #4eff91;
+      box-shadow: 0 0 15px rgba(78, 255, 145, 0.6);
+    }
+
+    /* ===== LEVEL COMPLETE OVERLAY ===== */
+    #overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0,0,0,0.85);
+      z-index: 100;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 30px;
+    }
+    #overlay.active {
+      display: flex;
+    }
+    .overlay-emoji {
+      font-size: 5em;
+      margin-bottom: 20px;
+      animation: bounce 0.6s infinite alternate;
+    }
+    @keyframes bounce {
+      from { transform: translateY(0); }
+      to { transform: translateY(-15px); }
+    }
+    .overlay-title {
+      font-size: 2em;
+      font-weight: bold;
+      color: #f9d71c;
+      margin-bottom: 10px;
+    }
+    .overlay-msg {
+      font-size: 1em;
+      opacity: 0.8;
+      margin-bottom: 30px;
+    }
+    .next-btn {
+      background: linear-gradient(135deg, #f9d71c, #ff6b6b);
+      border: none;
+      color: #1a1a2e;
+      padding: 15px 40px;
+      border-radius: 30px;
+      font-size: 1.2em;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 5px 20px rgba(249, 215, 28, 0.4);
+    }
+    .home-again-btn {
+      background: transparent;
+      border: 2px solid rgba(255,255,255,0.3);
+      color: white;
+      padding: 10px 25px;
+      border-radius: 30px;
+      font-size: 0.95em;
+      cursor: pointer;
+      margin-top: 12px;
+    }
+
+    /* ===== STARS DISPLAY ===== */
+    .stars {
+      font-size: 2em;
+      margin-bottom: 10px;
+      letter-spacing: 5px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ========== HOME SCREEN ========== -->
+  <div class="screen active" id="homeScreen">
+    <div class="home-title">🎮 Matching Fun!</div>
+    <p class="home-subtitle">Choose a category to play</p>
+
+    <div class="category-grid">
+      <div class="category-card" onclick="startGame('colors')">
+        <span class="icon">🎨</span>
+        <span class="name">Colors</span>
+      </div>
+      <div class="category-card" onclick="startGame('numbers')">
+        <span class="icon">🔢</span>
+        <span class="name">Numbers</span>
+      </div>
+      <div class="category-card" onclick="startGame('animals')">
+        <span class="icon">🐾</span>
+        <span class="name">Animals</span>
+      </div>
+      <div class="category-card" onclick="startGame('fruits')">
+        <span class="icon">🍎</span>
+        <span class="name">Fruits</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== GAME SCREEN ========== -->
+  <div class="screen" id="gameScreen">
+    <div class="game-header">
+      <button class="back-btn" onclick="goHome()">← Home</button>
+      <div class="game-info">
+        <div class="level-text" id="levelDisplay">Level 1</div>
+        <div class="score-text" id="scoreDisplay">Score: 0</div>
+      </div>
+      <div class="category-text" id="categoryDisplay">🎨</div>
+    </div>
+
+    <!-- Cards yahan JavaScript se inject honge -->
+    <div id="cardGrid"></div>
+  </div>
+
+  <!-- ========== LEVEL COMPLETE OVERLAY ========== -->
+  <div id="overlay">
+    <div class="overlay-emoji" id="overlayEmoji">🎉</div>
+    <div class="stars" id="overlayStars">⭐⭐⭐</div>
+    <div class="overlay-title" id="overlayTitle">Level Complete!</div>
+    <div class="overlay-msg" id="overlayMsg">Amazing! You matched everything!</div>
+    <button class="next-btn" id="nextBtn" onclick="nextLevel()">Next Level →</button>
+    <button class="home-again-btn" onclick="goHome()">🏠 Home</button>
+  </div>
+
+  <script>
+    // =============================================
+    // DATA — Har category ke liye items
+    // Hum pairs banayenge inhi items se
+    // =============================================
+    const categoryData = {
+      colors: {
+        icon: '🎨',
+        name: 'Colors',
+        items: [
+          { id: 'red',    display: '🔴', label: 'Red' },
+          { id: 'blue',   display: '🔵', label: 'Blue' },
+          { id: 'green',  display: '🟢', label: 'Green' },
+          { id: 'yellow', display: '🟡', label: 'Yellow' },
+          { id: 'purple', display: '🟣', label: 'Purple' },
+          { id: 'orange', display: '🟠', label: 'Orange' },
+          { id: 'white',  display: '⚪', label: 'White' },
+          { id: 'black',  display: '⚫', label: 'Black' },
+        ]
+      },
+      numbers: {
+        icon: '🔢',
+        name: 'Numbers',
+        items: [
+          { id: 'one',   display: '1️⃣', label: 'One' },
+          { id: 'two',   display: '2️⃣', label: 'Two' },
+          { id: 'three', display: '3️⃣', label: 'Three' },
+          { id: 'four',  display: '4️⃣', label: 'Four' },
+          { id: 'five',  display: '5️⃣', label: 'Five' },
+          { id: 'six',   display: '6️⃣', label: 'Six' },
+          { id: 'seven', display: '7️⃣', label: 'Seven' },
+          { id: 'eight', display: '8️⃣', label: 'Eight' },
+        ]
+      },
+      animals: {
+        icon: '🐾',
+        name: 'Animals',
+        items: [
+          { id: 'cat',      display: '🐱', label: 'Cat' },
+          { id: 'dog',      display: '🐶', label: 'Dog' },
+          { id: 'lion',     display: '🦁', label: 'Lion' },
+          { id: 'elephant', display: '🐘', label: 'Elephant' },
+          { id: 'monkey',   display: '🐒', label: 'Monkey' },
+          { id: 'rabbit',   display: '🐰', label: 'Rabbit' },
+          { id: 'bear',     display: '🐻', label: 'Bear' },
+          { id: 'tiger',    display: '🐯', label: 'Tiger' },
+        ]
+      },
+      fruits: {
+        icon: '🍎',
+        name: 'Fruits',
+        items: [
+          { id: 'apple',      display: '🍎', label: 'Apple' },
+          { id: 'banana',     display: '🍌', label: 'Banana' },
+          { id: 'grapes',     display: '🍇', label: 'Grapes' },
+          { id: 'orange',     display: '🍊', label: 'Orange' },
+          { id: 'strawberry', display: '🍓', label: 'Strawberry' },
+          { id: 'watermelon', display: '🍉', label: 'Watermelon' },
+          { id: 'mango',      display: '🥭', label: 'Mango' },
+          { id: 'cherry',     display: '🍒', label: 'Cherry' },
+        ]
+      }
+    };
+
+    // =============================================
+    // LEVEL CONFIG — Har level mein kitne pairs?
+    // Level 1 = 3 pairs (6 cards)
+    // Level 2 = 4 pairs (8 cards)
+    // Level 3 = 5 pairs (10 cards) ... etc
+    // =============================================
+    function getPairsForLevel(level) {
+      // Level 1 se 3 pairs shuru, har level mein 1 badhao, max 8
+      return Math.min(3 + (level - 1), 8);
+    }
+
+    // =============================================
+    // GAME STATE — Ye variables game ka hal record rakhein
+    // =============================================
+    let currentCategory = '';
+    let currentLevel = 1;
+    let score = 0;
+    let flippedCards = [];   // abhi kitni cards palti hain (max 2)
+    let matchedPairs = 0;    // kitne pairs match ho gaye
+    let totalPairs = 0;      // is level mein kitne pairs total hain
+    let canFlip = true;      // false karte hain jab do cards check ho rahe ho
+
+    // =============================================
+    // GAME START — Category choose karne par chalta hai
+    // =============================================
+    function startGame(category) {
+      currentCategory = category;
+      currentLevel = 1;
+      score = 0;
+      showScreen('gameScreen');
+      buildLevel();
+    }
+
+    // =============================================
+    // BUILD LEVEL — Cards banao aur grid mein daalo
+    // =============================================
+    function buildLevel() {
+      // State reset karo
+      flippedCards = [];
+      matchedPairs = 0;
+      canFlip = true;
+
+      const data = categoryData[currentCategory];
+      totalPairs = getPairsForLevel(currentLevel);
+
+      // Header update karo
+      document.getElementById('levelDisplay').textContent = `Level ${currentLevel}`;
+      document.getElementById('scoreDisplay').textContent = `Score: ${score}`;
+      document.getElementById('categoryDisplay').textContent = data.icon + ' ' + data.name;
+
+      // Pehle totalPairs items lo (shuffle karke variety ke liye)
+      const shuffledItems = shuffle([...data.items]);
+      const selectedItems = shuffledItems.slice(0, totalPairs);
+
+      // Har item ke 2 copies banao (pair ke liye), phir sab shuffle karo
+      const allCards = shuffle([...selectedItems, ...selectedItems]);
+
+      // Grid columns decide karo — 3 ya 4 columns
+      const grid = document.getElementById('cardGrid');
+      const columns = totalPairs <= 4 ? 3 : 4;
+      grid.style.gridTemplateColumns = `repeat(${columns}, 1fr)`;
+      grid.innerHTML = ''; // purani cards saaf karo
+
+      // Har card ka HTML banao
+      allCards.forEach((item, index) => {
+        const cardContainer = document.createElement('div');
+        cardContainer.classList.add('card-container');
+        cardContainer.dataset.id = item.id;       // matching ke liye
+        cardContainer.dataset.index = index;       // unique position
+
+        cardContainer.innerHTML = `
+          <div class="card-inner">
+            <div class="card-front">?</div>
+            <div class="card-back">${item.display}</div>
+          </div>
+        `;
+
+        // Click event
+        cardContainer.addEventListener('click', () => flipCard(cardContainer));
+        grid.appendChild(cardContainer);
+      });
+    }
+
+    // =============================================
+    // FLIP CARD — Jab koi card click kare
+    // =============================================
+    function flipCard(card) {
+      // Agar already flip ho rahi hai ya matched hai ya 2 already flip hain — rok do
+      if (!canFlip) return;
+      if (card.classList.contains('flipped')) return;
+      if (card.classList.contains('matched')) return;
+      if (flippedCards.length >= 2) return;
+
+      // Card palto
+      card.classList.add('flipped');
+      flippedCards.push(card);
+
+      // Agar 2 cards flip ho gayi hain — check karo
+      if (flippedCards.length === 2) {
+        canFlip = false; // naya card click band karo jab tak check na ho jaye
+        setTimeout(checkMatch, 800); // thoda wait karo taake dono cards dikhein
+      }
+    }
+
+    // =============================================
+    // CHECK MATCH — Kya dono cards same hain?
+    // =============================================
+    function checkMatch() {
+      const [card1, card2] = flippedCards;
+
+      if (card1.dataset.id === card2.dataset.id) {
+        // ✅ MATCH! Dono ko matched mark karo
+        card1.classList.add('matched');
+        card2.classList.add('matched');
+        matchedPairs++;
+        score += 10 * currentLevel; // jitna bada level utna zyada score!
+        document.getElementById('scoreDisplay').textContent = `Score: ${score}`;
+
+        // Sab pairs match ho gaye?
+        if (matchedPairs === totalPairs) {
+          setTimeout(showLevelComplete, 500);
+        }
+      } else {
+        // ❌ NO MATCH — Dono cards wapas ulti karo
+        card1.classList.remove('flipped');
+        card2.classList.remove('flipped');
+      }
+
+      // Reset flipped cards aur allow clicking again
+      flippedCards = [];
+      canFlip = true;
+    }
+
+    // =============================================
+    // LEVEL COMPLETE OVERLAY
+    // =============================================
+    function showLevelComplete() {
+      // Stars decide karo based on score (simple logic)
+      const stars = currentLevel >= 5 ? '⭐⭐⭐' : currentLevel >= 3 ? '⭐⭐' : '⭐';
+
+      document.getElementById('overlayEmoji').textContent = '🎉';
+      document.getElementById('overlayStars').textContent = '⭐⭐⭐';
+      document.getElementById('overlayTitle').textContent = `Level ${currentLevel} Complete!`;
+      document.getElementById('overlayMsg').textContent =
+        `Great job! Score: ${score}\n${getPairsForLevel(currentLevel + 1)} pairs in next level!`;
+
+      // Agar yeh last level tha (max 8 pairs)
+      if (getPairsForLevel(currentLevel) === 8) {
+        document.getElementById('overlayTitle').textContent = '🏆 You Won!';
+        document.getElementById('overlayMsg').textContent = `Amazing! Final Score: ${score}`;
+        document.getElementById('nextBtn').textContent = '🔄 Play Again';
+        document.getElementById('nextBtn').onclick = () => { currentLevel = 0; nextLevel(); };
+      } else {
+        document.getElementById('nextBtn').textContent = 'Next Level →';
+        document.getElementById('nextBtn').onclick = nextLevel;
+      }
+
+      document.getElementById('overlay').classList.add('active');
+    }
+
+    // =============================================
+    // NEXT LEVEL
+    // =============================================
+    function nextLevel() {
+      document.getElementById('overlay').classList.remove('active');
+      currentLevel++;
+      buildLevel();
+    }
+
+    // =============================================
+    // GO HOME
+    // =============================================
+    function goHome() {
+      document.getElementById('overlay').classList.remove('active');
+      showScreen('homeScreen');
+    }
+
+    // =============================================
+    // HELPER: Screen switch karo
+    // =============================================
+    function showScreen(screenId) {
+      document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+      document.getElementById(screenId).classList.add('active');
+    }
+
+    // =============================================
+    // HELPER: Array shuffle (Fisher-Yates algorithm)
+    // Yeh cards ko random order mein rakhta hai
+    // =============================================
+    function shuffle(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+  <script>
+  // Service worker register karo — yeh PWA ko offline kaam karne deta hai
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('./service-worker.js')
+      .then(() => console.log('PWA Ready!'))
+      .catch(err => console.log('Error:', err));
+  }
+  </script>
+</body>
+</html>
